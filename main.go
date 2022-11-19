@@ -107,7 +107,7 @@ func main() {
 	)
 	flag.Parse()
 	if *dirFlag == "None" {
-		log.Fatalf("No directoy was given!")
+		log.Fatalf("No directory was given!")
 	}
 	excludeFileTypes = strings.Split(*excludeFileFlag, ";")
 	excludeDirs = strings.Split(*excludeDirsFlag, ";")
