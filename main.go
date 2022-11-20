@@ -12,6 +12,9 @@ import (
 )
 
 type (
+	/*
+		struct to lock and unlock to prevent concurrent map writes
+	*/
 	linesEachFile struct {
 		mutex            sync.Mutex
 		linesEachFileMap map[string]int
@@ -32,13 +35,14 @@ func (linesEachFile *linesEachFile) readFile(path string) {
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
-	linesEachFile.mutex.Lock()
-	defer linesEachFile.mutex.Unlock()
-	defer wg.Done()
+	defer wg.Done() //tell waitgroup that routine is done
 	scanner := bufio.NewScanner(file)
 	buf := make([]byte, *scannerBuffer)
 	scanner.Buffer(buf, *scannerBuffer)
 	scanner.Split(bufio.ScanLines)
+
+	linesEachFile.mutex.Lock()         //lock for map writes
+	defer linesEachFile.mutex.Unlock() //unlock when done
 	linesEachFile.linesEachFileMap[path] = 0
 	for scanner.Scan() {
 		if len(scanner.Text()) > 0 { //skip if it's just an empty line
@@ -96,7 +100,6 @@ func (linesEachFile *linesEachFile) printResult() {
 }
 
 func main() {
-	lef := linesEachFile{}
 	dirFlag := flag.String(
 		"dir",
 		"None",
@@ -123,8 +126,9 @@ func main() {
 	}
 	excludeFileTypes = strings.Split(*excludeFileFlag, ";")
 	excludeDirs = strings.Split(*excludeDirsFlag, ";")
+	lef := linesEachFile{}
 	lef.linesEachFileMap = make(map[string]int)
 	lef.iterateOverDir(*dirFlag)
-	wg.Wait()
+	wg.Wait() //wait for all routines to finish
 	lef.printResult()
 }
