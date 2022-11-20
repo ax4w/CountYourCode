@@ -21,7 +21,7 @@ var (
 	wg            sync.WaitGroup
 )
 
-func readFile(path string, c chan int) {
+func (lines *lines) readFile(path string, c chan int) {
 	file, err := os.Open(path)
 	defer file.Close() //close when done
 	if err != nil {
@@ -35,10 +35,10 @@ func readFile(path string, c chan int) {
 	scanner.Split(bufio.ScanLines)
 	for scanner.Scan() {
 		if len(scanner.Text()) > 0 { //skip if it's just an empty line
-			total++
+			lines.total++
 		}
 	}
-	c <- total //send total back through channel
+	c <- total //send total of the file back through channel
 }
 
 func (lines *lines) iterateOverDir(path string,
@@ -71,10 +71,8 @@ func (lines *lines) iterateOverDir(path string,
 			c := make(chan int)
 			if !skip {
 				wg.Add(1)
-				go readFile(path, c)
-				currFile := <-c
-				lines.linesEachFile[path] = currFile
-				lines.total += currFile
+				go lines.readFile(path, c)
+				lines.linesEachFile[path] = <-c
 			}
 			skip = false
 
