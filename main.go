@@ -8,37 +8,47 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+)
+
+type (
+	linesEachFile struct {
+		mutex            sync.Mutex
+		linesEachFileMap map[string]int
+	}
 )
 
 var (
 	excludeFileTypes []string
 	excludeDirs      []string
-	linesEachFile    map[string]int
 	scannerBuffer    *int
 	totalSum         = 0
+	wg               sync.WaitGroup
 )
 
-func readFile(path string) {
-
+func (linesEachFile *linesEachFile) readFile(path string) {
 	file, err := os.Open(path)
 	defer file.Close() //close when done
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
+	linesEachFile.mutex.Lock()
+	defer linesEachFile.mutex.Unlock()
+	defer wg.Done()
 	scanner := bufio.NewScanner(file)
 	buf := make([]byte, *scannerBuffer)
 	scanner.Buffer(buf, *scannerBuffer)
 	scanner.Split(bufio.ScanLines)
-	linesEachFile[path] = 0
+	linesEachFile.linesEachFileMap[path] = 0
 	for scanner.Scan() {
 		if len(scanner.Text()) > 0 { //skip if it's just an empty line
-			linesEachFile[path]++
+			linesEachFile.linesEachFileMap[path]++
 			totalSum++
 		}
 	}
 }
 
-func iterateOverDir(path string) {
+func (linesEachFile *linesEachFile) iterateOverDir(path string) {
 	filepath.Walk(path, func(path string, f os.FileInfo, err error) error {
 		skip := false
 		if err != nil {
@@ -63,7 +73,8 @@ func iterateOverDir(path string) {
 				}
 
 				if !skip {
-					readFile(path)
+					wg.Add(1)
+					linesEachFile.readFile(path)
 				}
 			}
 			skip = false
@@ -73,18 +84,19 @@ func iterateOverDir(path string) {
 	})
 }
 
-func printResult() {
-	if len(linesEachFile) == 0 || totalSum == 0 {
+func (linesEachFile *linesEachFile) printResult() {
+	if len(linesEachFile.linesEachFileMap) == 0 || totalSum == 0 {
 		fmt.Println("No files were read!")
 		return
 	}
-	for k, e := range linesEachFile {
+	for k, e := range linesEachFile.linesEachFileMap {
 		fmt.Printf("File %s contained %d lines\n", k, e)
 	}
 	fmt.Printf("This project has a total lenght of %d lines\n", totalSum)
 }
 
 func main() {
+	lef := linesEachFile{}
 	dirFlag := flag.String(
 		"dir",
 		"None",
@@ -111,7 +123,8 @@ func main() {
 	}
 	excludeFileTypes = strings.Split(*excludeFileFlag, ";")
 	excludeDirs = strings.Split(*excludeDirsFlag, ";")
-	linesEachFile = make(map[string]int)
-	iterateOverDir(*dirFlag)
-	printResult()
+	lef.linesEachFileMap = make(map[string]int)
+	lef.iterateOverDir(*dirFlag)
+	wg.Wait()
+	lef.printResult()
 }
