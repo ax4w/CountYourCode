@@ -16,12 +16,10 @@ type lines struct {
 	total         int
 }
 
-var (
-	scannerBuffer *int
-	wg            sync.WaitGroup
-)
-
-func (lines *lines) readFile(path string, c chan int) {
+func (lines *lines) readFile(path string,
+	c chan int,
+	scannerBuffer *int,
+	wg sync.WaitGroup) {
 	file, err := os.Open(path)
 	defer file.Close() //close when done
 	if err != nil {
@@ -44,7 +42,9 @@ func (lines *lines) readFile(path string, c chan int) {
 
 func (lines *lines) iterateOverDir(path string,
 	excludeDirs []string,
-	excludeFileTypes []string) {
+	excludeFileTypes []string,
+	scannerBuffer *int,
+	wg sync.WaitGroup) {
 	filepath.Walk(path, func(path string, f os.FileInfo, err error) error {
 		skip := false
 		if err != nil {
@@ -72,7 +72,7 @@ func (lines *lines) iterateOverDir(path string,
 			c := make(chan int)
 			if !skip {
 				wg.Add(1)
-				go lines.readFile(path, c)
+				go lines.readFile(path, c, scannerBuffer, wg)
 				lines.linesEachFile[path] = <-c
 			}
 			skip = false
@@ -110,7 +110,7 @@ func main() {
 		"None",
 		"Add directories that shall be excluded.\n-> Split with ;",
 	)
-	scannerBuffer = flag.Int(
+	scannerBuffer := flag.Int(
 		"scannerBuffer",
 		64000,
 		"Adjust the size of the scanner's buffer, when reading a file (in lines).",
@@ -123,9 +123,10 @@ func main() {
 		linesEachFile: make(map[string]int),
 		total:         0,
 	}
+	wg := sync.WaitGroup{}
 	excludeFileTypes := strings.Split(*excludeFileFlag, ";")
 	excludeDirs := strings.Split(*excludeDirsFlag, ";")
-	lines.iterateOverDir(*dirFlag, excludeDirs, excludeFileTypes)
+	lines.iterateOverDir(*dirFlag, excludeDirs, excludeFileTypes, scannerBuffer, wg)
 	wg.Wait() //wait for all routines to finish
 	lines.printResult()
 }
