@@ -35,9 +35,10 @@ func (lines *lines) readFile(path string, c chan int) {
 	scanner.Split(bufio.ScanLines)
 	for scanner.Scan() {
 		if len(scanner.Text()) > 0 { //skip if it's just an empty line
-			lines.total++
+			total++
 		}
 	}
+	lines.total += total
 	c <- total //send total of the file back through channel
 }
 
