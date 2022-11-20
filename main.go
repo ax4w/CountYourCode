@@ -78,7 +78,7 @@ func (linesEachFile *linesEachFile) iterateOverDir(path string) {
 
 				if !skip {
 					wg.Add(1)
-					linesEachFile.readFile(path)
+					go linesEachFile.readFile(path)
 				}
 			}
 			skip = false
